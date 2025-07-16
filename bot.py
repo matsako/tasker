@@ -89,26 +89,23 @@ async def morning(message: types.Message):
     if user_id not in data or not data[user_id]['projects']:
         await message.answer("Сначала настрой проекты через /start.")
         return
-    text = "Доброе утро! Напиши, что планируешь сделать сегодня по каждому проекту (каждый с новой строки, в том же порядке):"
+    text = "Доброе утро! Опиши в свободной форме, что планируешь сделать сегодня по своим проектам. Можно писать как удобно — бот сам разберётся!"
     await message.answer(text)
     user_states[user_id] = 'awaiting_morning_tasks'
 
 @dp.message(lambda m: user_states.get(str(m.from_user.id)) == 'awaiting_morning_tasks')
 async def receive_morning_tasks(message: types.Message):
     user_id = str(message.from_user.id)
-    tasks = message.text.strip().split('\n')
+    tasks_text = message.text.strip()
     data = load_user_data()
-    if len(tasks) < 4:
-        await message.answer("Пожалуйста, напиши задачи по каждому из 4 проектов (каждый с новой строки).")
-        return
     # Анализируем задачи через GPT
     prompt = load_prompt()
     user_projects = data[user_id]['projects']
     user_goals = data[user_id]['goals']
-    gpt_input = f"Проекты: {user_projects}\nЦели: {user_goals}\nПланы на день: {tasks}\n\n{prompt}"
+    gpt_input = f"Проекты: {user_projects}\nЦели: {user_goals}\nПланы на день (свободный текст): {tasks_text}\n\n{prompt}"
     gpt_response = await ask_gpt(gpt_input)
     # Сохраняем в историю
-    data[user_id]['history'].append({'type': 'morning', 'tasks': tasks, 'gpt': gpt_response})
+    data[user_id]['history'].append({'type': 'morning', 'tasks': tasks_text, 'gpt': gpt_response})
     save_user_data(data)
     await message.answer(f"Анализ и приоритеты на день:\n{gpt_response}")
     user_states.pop(user_id, None)
@@ -121,26 +118,23 @@ async def evening(message: types.Message):
     if user_id not in data or not data[user_id]['projects']:
         await message.answer("Сначала настрой проекты через /start.")
         return
-    text = "Вечер! Напиши, что удалось сделать по каждому проекту (каждый с новой строки, в том же порядке):"
+    text = "Вечер! Опиши в свободной форме, что удалось сделать по своим проектам. Можно писать как удобно — бот сам разберётся!"
     await message.answer(text)
     user_states[user_id] = 'awaiting_evening_report'
 
 @dp.message(lambda m: user_states.get(str(m.from_user.id)) == 'awaiting_evening_report')
 async def receive_evening_report(message: types.Message):
     user_id = str(message.from_user.id)
-    reports = message.text.strip().split('\n')
+    reports_text = message.text.strip()
     data = load_user_data()
-    if len(reports) < 4:
-        await message.answer("Пожалуйста, напиши отчёт по каждому из 4 проектов (каждый с новой строки).")
-        return
     # Анализируем отчёт через GPT
     prompt = load_prompt()
     user_projects = data[user_id]['projects']
     user_goals = data[user_id]['goals']
-    gpt_input = f"Проекты: {user_projects}\nЦели: {user_goals}\nОтчёт за день: {reports}\n\n{prompt}"
+    gpt_input = f"Проекты: {user_projects}\nЦели: {user_goals}\nОтчёт за день (свободный текст): {reports_text}\n\n{prompt}"
     gpt_response = await ask_gpt(gpt_input)
     # Сохраняем в историю
-    data[user_id]['history'].append({'type': 'evening', 'report': reports, 'gpt': gpt_response})
+    data[user_id]['history'].append({'type': 'evening', 'report': reports_text, 'gpt': gpt_response})
     save_user_data(data)
     await message.answer(f"Рефлексия и анализ дня:\n{gpt_response}")
     user_states.pop(user_id, None)
