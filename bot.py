@@ -26,7 +26,7 @@ def load_prompt():
 def load_user_data():
     if not os.path.exists(USER_DATA_FILE):
         return {}
-    with open(USER_DATA_FILE, 'r', encoding='utf-8') as f:
+     with open(USER_DATA_FILE, 'r', encoding='utf-8') as f:
         return json.load(f)
 
 def save_user_data(data):
