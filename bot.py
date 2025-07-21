@@ -13,8 +13,6 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 PROMPT_PATH = os.getenv('PROMPT_PATH', 'prompt.txt')
 
-openai.api_key = OPENAI_API_KEY
-
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher()
 
@@ -101,14 +99,18 @@ async def receive_morning_tasks(message: types.Message):
     prompt = load_prompt()
     user_projects = data[user_id]['projects']
     user_goals = data[user_id]['goals']
-    gpt_input = (
-        f"Проекты: {user_projects}\n"
-        f"Цели: {user_goals}\n"
-        f"Планы на день (свободный текст): {tasks_text}\n\n"
-        f"{prompt}"
-    )
-    gpt_response = await ask_gpt(gpt_input)
+    # Формируем сообщения для GPT с историей
+    user_history = data[user_id].get('dialog_history', [])
+    user_history.append({"role": "user", "content": tasks_text})
+    user_history = user_history[-10:]
+    gpt_messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": f"Проекты: {user_projects}\nЦели: {user_goals}"}
+    ] + user_history
+    gpt_response = await ask_gpt_dialog(gpt_messages)
+    # Сохраняем в историю
     data[user_id]['history'].append({'type': 'morning', 'tasks': tasks_text, 'gpt': gpt_response})
+    data[user_id]['dialog_history'] = user_history + [{"role": "assistant", "content": gpt_response}]
     save_user_data(data)
     await message.answer(f"Анализ и приоритеты на день:\n{gpt_response}")
     user_states.pop(user_id, None)
@@ -133,31 +135,32 @@ async def receive_evening_report(message: types.Message):
     prompt = load_prompt()
     user_projects = data[user_id]['projects']
     user_goals = data[user_id]['goals']
-    gpt_input = (
-        f"Проекты: {user_projects}\n"
-        f"Цели: {user_goals}\n"
-        f"Отчёт за день (свободный текст): {reports_text}\n\n"
-        f"{prompt}"
-    )
-    gpt_response = await ask_gpt(gpt_input)
+    # Формируем сообщения для GPT с историей
+    user_history = data[user_id].get('dialog_history', [])
+    user_history.append({"role": "user", "content": reports_text})
+    user_history = user_history[-10:]
+    gpt_messages = [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": f"Проекты: {user_projects}\nЦели: {user_goals}"}
+    ] + user_history
+    gpt_response = await ask_gpt_dialog(gpt_messages)
+    # Сохраняем в историю
     data[user_id]['history'].append({'type': 'evening', 'report': reports_text, 'gpt': gpt_response})
+    data[user_id]['dialog_history'] = user_history + [{"role": "assistant", "content": gpt_response}]
     save_user_data(data)
     await message.answer(f"Рефлексия и анализ дня:\n{gpt_response}")
     user_states.pop(user_id, None)
 
-# --- GPT запрос ---
-async def ask_gpt(prompt):
-    loop = asyncio.get_event_loop()
-    response = await loop.run_in_executor(
-        None,
-        lambda: openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=500,
-            temperature=0.7
-        )
+# --- GPT запрос с историей диалога ---
+async def ask_gpt_dialog(messages):
+    client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    response = await client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        max_tokens=500,
+        temperature=0.7
     )
-    return response['choices'][0]['message']['content'].strip()
+    return response.choices[0].message.content.strip()
 
 # --- Планировщик напоминаний ---
 scheduler = AsyncIOScheduler()
